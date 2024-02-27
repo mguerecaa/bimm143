@@ -1,0 +1,273 @@
+---
+title: "class13"
+author: "melissa"
+format: html
+editor: visual
+---
+
+## Bioconductor Setup
+```{r}
+#| meesage: false
+library(BiocManager)
+library(DESeq2)
+```
+
+## Import countData and colData
+
+```{r}
+# Complete the missing code
+counts <- read.csv("airway_scaledcounts.csv", row.names=1)
+metadata <-  read.csv("airway_metadata.csv")
+```
+
+```{r}
+head(counts)
+```
+
+```{r}
+head(metadata)
+```
+
+> Q1. How many genes are in the dataset? Answer: 8
+
+```{r}
+nrow(metadata)
+```
+
+> Q2. How many 'control' cell lines do we have? Answer: 4
+
+```{r}
+
+count(metadata$dex == "control")
+
+```
+
+
+> Q3. How would you make the above code in either approach more robust? Is there a function that could help here?
+
+> Q4. Follow the same procedure for the treated samples (i.e. calculate the mean per gene across drug treated samples and assign to a labeled vector called treated.mean)
+
+
+## Toy differential gene expression
+
+Time to do some analysis.
+
+We have 4 control and 4 treated samples/experiments/columns.
+
+Make sure the metadata is column matches the column in our count data.
+
+```{r}
+colnames(counts)
+```
+
+```{r}
+metadata$id
+```
+
+```{r}
+colnames(counts) == metadata$id
+```
+
+To check that all elements of a vector are TRUE we can use the `all()` function.
+
+```{r}
+all(c(T, T, T, F))
+```
+
+```{r}
+all(colnames(counts) == metadata$id)
+```
+
+To start I wil calculate the `control.mean` and `treated.mean` values and campare them.
+
+- Identify and extract the `control` only columns
+- Determine the mean value for each gene (i.e row)
+- Do the same for `treated`
+
+```{r}
+# Where does it tell me which columns are control?
+control.inds<- metadata$dex == "control"
+control.counts <- counts[ , control.inds]
+control.mean <- apply(control.counts, 1, mean)
+#1 for rows, 2 for columns
+```
+
+```{r}
+# Where does it tell me which columns are control?
+treated.inds<- metadata$dex == "treated"
+treated.counts <- counts[ , treated.inds]
+treated.mean <- apply(treated.counts, 1, mean)
+#1 for rows, 2 for columns
+```
+
+Lets store these together for ease of bookkeeping
+
+```{r}
+meancounts <- data.frame(control.mean, treated.mean)
+plot(meancounts)
+```
+
+This data is screaming at us to log transform as it is so heavily skews and over such a wide range.
+
+```{r}
+plot(meancounts, log="xy")
+```
+
+I want to compare the treated and the control values here and we ill use fold change in log2 units to do this. log2(Treated/Control)
+
+```{r}
+log2fc <- log2(meancounts$treated.mean/meancounts$control.mean)
+meancounts$log2fc <- log2fc
+```
+
+No difference.
+
+```{r}
+log2(20/20)
+```
+
+A doubling in the treated.
+
+```{r}
+log2(20/10)
+```
+
+A log2 fold change of -1.
+
+```{r}
+log2(5/10)
+```
+
+A quadruple in the treated.
+
+```{r}
+log2(40/10)
+```
+
+A common rule of cutoff for calling a gene "differentially expressed" is a log2 fold-change value of either > +2 or < -2 for "up regulated" and  "down regulated" respectively.
+
+```{r}
+head(meancounts)
+```
+
+```{r}
+sum(meancounts$log2fc > +2, na.rm=T)
+```
+
+We first have to remove zero count genes - as we can't say anything about these genes anyway and their division of log values are messing things up (divide by zero) or the -infinity log problem.
+
+```{r}
+to.rm.ind <- rowSums(meancounts[,1:2]==0) > 0
+mycounts <- meancounts[!to.rm.ind, ]
+
+```
+
+> Q. How many genes do we have left that we can say something about them (i.e. they don't have any zero counts)? Answer: 21817
+
+```{r}
+nrow(mycounts)
+```
+
+Using our threshold of +2/-2:
+
+```{r}
+up.ind <- mycounts$log2fc > 2
+down.ind <- mycounts$log2fc < (-2)
+```
+
+
+> Q8. Using the up.ind vector above can you determine how many up regulated genes we have at the greater than 2 fc level? Answer: 250
+
+```{r}
+sum(up.ind)
+```
+
+
+> Q9. Using the down.ind vector above can you determine how many down regulated genes we have at the greater than 2 fc level? Answer: 367
+
+```{r}
+sum(down.ind)
+```
+
+
+> Q10. Do you trust these results? Why or why not? Answer: I don't trust these reuslts because we don't know if the difference are significant.
+
+No we are missing stats!! Are these differences significant?
+
+## DESeq analysis
+
+Let's do this properly with the help of DESeq2 package
+
+```{r}
+#| meesage: false
+library(DESeq2)
+```
+
+We have to use a specific data object for working with DESeq.
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = counts,
+                       colData = metadata,
+                       design = ~dex)
+```
+
+Run our main analysis with the `DESeq()` function.
+
+```{r}
+dds <- DESeq(dds)
+```
+
+To get the results out of our `dds` object we can use the DESeq funciton called `results()`: 
+
+```{r}
+res <- results(dds)
+head(res)
+```
+
+# Volcano Plot
+
+A very common and useful summary results figure from this type of analysis is called a volcano plot - a lot of log2FC vs P-value. We use the `padj` the adjusted P-value for multiple testing.
+
+```{r}
+plot(res$log2FoldChange, res$padj)
+```
+
+```{r}
+plot(res$log2FoldChange, -log(res$padj),  ylab="-Log(P-value)", xlab="Log2(FoldChange)")
+```
+
+Add some color to the plot:
+
+```{r}
+# Setup our custom point color vector 
+mycols <- rep("gray", nrow(res))
+mycols[ abs(res$log2FoldChange) > 2 ]  <- "red" 
+
+inds <- (res$padj < 0.01) & (abs(res$log2FoldChange) > 2 )
+mycols[ inds ] <- "blue"
+
+# Volcano plot with custom colors 
+plot( res$log2FoldChange,  -log(res$padj), 
+ col=mycols, ylab="-Log(P-value)", xlab="Log2(FoldChange)" )
+
+# Cut-off lines
+abline(v=c(-2,2), col="gray", lty=2)
+abline(h=-log(0.1), col="gray", lty=2)
+```
+
+
+```{r}
+log(0.00005)
+log(0.5)
+# the smaller the p-value the more extreme the negative value
+```
+
+
+
+
+
+
+
+
+
+

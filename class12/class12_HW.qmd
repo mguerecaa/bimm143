@@ -1,0 +1,48 @@
+---
+title: "Class 12: Population Scale Analysis [HOMEWORK]"
+author: "Melissa Guereca (PID: A16511023)"
+format: pdf
+editor: visual
+---
+
+##Section 4: Population Scale Analysis [HOMEWORK]
+
+One sample is obviously not enough to know what is happening in a population. You are interested in assessing genetic differences on a population scale. So, you processed about ~230 samples and did the normalization on a genome level. Now, you want to find whether there is any association of the 4 asthma-associated SNPs (rs8067378...) on ORMDL3 expression.
+
+How many samples do we have? **Answer:** 462
+
+```{r}
+expr <- read.table("rs8067378_ENSG00000172057.6.txt")
+
+head(expr)
+```
+
+```{r}
+nrow(expr)
+```
+
+> Q13. Determine the sample size for each genotype:
+
+```{r}
+table(expr$geno)
+```
+
+```{r}
+library(ggplot2)
+```
+
+Lets make a boxplot.
+
+```{r}
+ggplot(expr) + aes(x=geno, y=exp, fill=geno) + 
+  geom_boxplot(notch=TRUE)
+```
+
+> Q14. What could you infer from the relative expression value between A/A and G/G displayed in this plot? Does the SNP effect the expression of ORMDL3?  **Answer:** Having a G/G is associated with having a reduced expression of the gene. And the SNP does affect the expression of ORMDL3.
+
+
+
+
+
+
+
