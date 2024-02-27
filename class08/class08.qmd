@@ -1,0 +1,266 @@
+---
+title: "Class 8: Breast Cancer Mini Project"
+author: "Melissa Guereca (PID: A16511023)"
+format: pdf
+editor: visual
+---
+
+## Lab 8: Unsupervised Learning Analysis of Human Breast Cancer Cells
+
+Before we get stuck into project work we will have a quick look at applying PCA to some example RNAseq data.
+
+Read the data (detailed in lab7):
+
+```{r}
+url2 <- "https://tinyurl.com/expression-CSV"
+rna.data <- read.csv(url2, row.names=1)
+head(rna.data)
+```
+
+Q. how many genes are in this dataset?
+
+```{r}
+nrow(rna.data)
+```
+
+## Run PCA
+
+```{r}
+## Again we have to take the transpose of our data 
+pca <- prcomp(t(rna.data), scale=TRUE)
+ 
+## Simple un polished plot of pc1 and pc2
+plot(pca$x[,1], pca$x[,2], xlab="PC1", ylab="PC2")
+```
+
+```{r}
+summary(pca)
+```
+
+```{r}
+pca$x
+```
+
+```{r}
+# We have 5 wt and 5 ko samples
+mycols <- c(rep("blue", 5), rep("red", 5))
+mycols
+
+## Simple un polished plot of pc1 and pc2
+plot(pca$x[,1], pca$x[,2], xlab="PC1", ylab="PC2", col=mycols)
+```
+
+I could examine which genes contribute most to this first PC
+
+```{r}
+head(sort(abs(pca$rotation[,1]), decreasing = T))
+```
+
+# Analysis of Breast Cancer FNA data.
+
+The data itself comes from the Wisconsin Breast Cancer Diagnostic Data Set.
+
+Values in this data set describes characteristics of the cell nuclei present in digitized images of a fine needle aspiration (FNA) of a breast mass.
+
+First we will read the data:
+
+```{r}
+wisc.df <- read.csv("WisconsinCancer.csv", row.names=1)
+head(wisc.df)
+```
+
+Note that the first column here wisc.df\$diagnostics is a pathologist provided expert diagnosis.
+
+```{r}
+diagnosis <- as.factor(wisc.df$diagnosis)
+```
+
+Now I want to make sure I remove that column from my data set for analysis.
+
+```{r}
+wisc.data <- wisc.df[,-1]
+head(wisc.data)
+```
+
+> Q1. How many patients are in this dataset? **Answer:** 569
+
+```{r}
+nrow(wisc.data)
+```
+
+> Q1. How many observations are in this dataset? **Answer:** 30
+
+```{r}
+ncol(wisc.data)
+```
+
+> Q2. How many of the observations have a malignant diagnosis? **Answer:** 212
+
+```{r}
+table(wisc.df$diagnosis)
+```
+
+> Q3. How many variables/features in the data are suffixed with \_mean? **Answer:** 10
+
+```{r}
+length(grep("_mean", colnames(wisc.data)))
+
+```
+
+### Principal Component of Analysis
+
+Here we will use `prcomp()` on the `wisc.data` object - the one without the diagnosis column.
+
+First, we have to decide whether to use the `scale=TRUE` argument when we run `prcomp()`.
+
+We can look at the means and sd of each column. If they are similar then we are all good to go. If not we should use `scale=TRUE`.
+
+```{r}
+colMeans(wisc.data)
+```
+
+```{r}
+apply(wisc.data,2,sd)
+```
+
+These are very different so we should scale=TRUE.
+
+```{r}
+wisc.pr <- prcomp(wisc.data, scale=TRUE)
+summary(wisc.pr)
+```
+
+> Q4. From your results, what proportion of the original variance is captured by the first principal components (PC1)? **Answer:** 44.27%
+
+> Q5. How many principal components (PCs) are required to describe at least 70% of the original variance in the data? **Answer:**3 PCs capture 72.6% of the original variance.
+
+Q6. How many principal components (PCs) are required to describe at least 90% of the original variance in the data?
+**Answer:** 7 PCs capture 91.0% of the original variance.
+
+## Plotting the PCA results
+
+```{r}
+biplot(wisc.pr)
+```
+
+> Q7. What stands out to you about this plot? Is it easy or difficult to understand? Why? **Answer:** Difficult. The point labels completely overlap each other making this plot difficult to read.
+
+
+We have to make our own plot.
+
+```{r}
+attributes(wisc.pr)
+```
+
+```{r}
+wisc.pr$x
+```
+
+```{r}
+plot(wisc.pr$x[,1], wisc.pr$x[,2], col=diagnosis)
+```
+
+```{r}
+library(ggplot2)
+
+pc <- as.data.frame(wisc.pr$x)
+
+ggplot(pc) + 
+  aes(PC1, PC2, col=diagnosis) + 
+  geom_point()
+```
+> Q8. Generate a similar plot for principal components 1 and 3. What do you notice about these plots? **Answer**: Points are less overcrowded. Plot is larger. It is easier to read.
+
+### Communicating PCA results
+
+> Q9. For the first principal component, what is the component of the loading vector (i.e. wisc.pr\$rotation\[,1\]) for the feature concave.points_mean?
+
+```{r}
+wisc.pr$rotation["concave.points_mean",1]
+```
+
+Q10. What is the minimum number of principal components required to explain 80% of the variance of the data? **Answer:** 5
+
+```{r}
+tbl <- summary(wisc.pr)
+which(tbl$importance[3,] > 0.8)[1]
+```
+
+## Hierarchial clustering
+
+The main function for Hierarchial clustering is called `hclus()` it takes a distance matrix as input.
+
+```{r}
+d <- dist(scale(wisc.data))
+wisc.hclust <- hclust(d)
+plot(wisc.hclust)
+```
+
+```{r}
+plot(wisc.hclust)
+abline(h=18, col="red")
+grps <- cutree(wisc.hclust, h=18)
+table(grps)
+```
+
+Come back here later to see how our cluster grps correspond to M or B groups.
+
+```{r}
+library(ggplot2)
+
+pc <- as.data.frame(wisc.pr$x)
+
+ggplot(pc) + 
+  aes(PC1, PC2, col=diagnosis) + 
+  geom_point()
+```
+
+Here we wil perform clustering on our PCA results rather than the original data.
+
+In other words we will cluster using `wisc.pr$x` - our new better variables or PCS. We can chose as many or as few PCs to use as we like. It is your call!
+
+```{r}
+d.pc <- dist(wisc.pr$x[, 1:3])
+
+wisc.pr.hclust <- hclust( d.pc, method="ward.D2")
+plot(wisc.pr.hclust)
+abline(h=80, col="red")
+```
+
+```{r}
+grps <- cutree(wisc.pr.hclust, h=80)
+table(grps)
+```
+
+We can use `table()` function to make a cross-table as well as just a count table.
+
+```{r}
+table(diagnosis)
+```
+
+```{r}
+table(grps, diagnosis)
+```
+
+Write a note here about how to read this cross-table result: The results indicate that our cluster 1 mostly captures cancer (M) and our cluster 2 mostly captures healthy (B) samples/individuals.
+
+## 7. Prediction
+
+```{r}
+url <- "https://tinyurl.com/new-samples-CSV"
+new <- read.csv(url)
+npc <- predict(wisc.pr, newdata=new)
+npc
+```
+
+And plot this up
+
+```{r}
+plot(wisc.pr$x[,1:2], col=grps)
+points(npc[,1], npc[,2], col="blue", pch=16, cex=3)
+text(npc[,1], npc[,2], c(1,2), col="white")
+```
+
+> Q17. Which of your analysis procedures resulted in a clustering model with the best specificity? How about sensitivity? For sensitiivty the k-means clustering. For specificity the plot3d.
+
+> Q18. Which of these new patients should we prioritize for follow up based on your results? The cluster that is malignant, cluster 1.
