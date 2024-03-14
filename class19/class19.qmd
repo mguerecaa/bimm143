@@ -1,0 +1,54 @@
+---
+title: "class19"
+format: html
+editor: visual
+---
+
+Q1. What protein do these sequences correspond to? (Give both full gene/protein name
+and official symbol).
+
+Q2. What are the tumor specific mutations.
+Use 
+```{r}
+library(bio3d)
+```
+
+```{r}
+s <- read.fasta("A16511023_mutant_seq.fa")
+s
+```
+
+```{r}
+s$id
+```
+
+```{r}
+s$ali
+```
+
+Score residue conservation
+```{r}
+conserv(s)
+```
+
+Score residue conservation and find the unconserved positions:
+
+```{r}
+pos <- which(conserv(s) < 1)
+```
+
+```{r}
+paste(s$ali[1,pos], pos, sep="")
+```
+
+
+```{r}
+s$ali[,pos]
+```
+
+```{r}
+s$ali[1, 243]
+```
+
+
+
